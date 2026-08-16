@@ -1,0 +1,28 @@
+[project]
+name = "finance-cli"
+version = "0.1.0"
+description = "A command-line tool for importing and analysing bank statements"
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
+license = "MIT"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "click (>=8.4.2,<9.0.0)"
+]
+
+[project.scripts]
+finance = "finance_cli.cli:cli"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.1.1,<10.0.0)",
+    "pytest-cov (>=7.1.0,<8.0.0)",
+    "ruff (>=0.16.3,<0.17.0)",
+    "black (>=26.5.1,<27.0.0)"
+]
