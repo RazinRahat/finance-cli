@@ -3,7 +3,7 @@ name = "finance-cli"
 version = "0.1.0"
 description = "A command-line tool for importing and analysing bank statements"
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "Razin Rayan Rahat"}
 ]
 license = "MIT"
 requires-python = ">=3.11,<4.0"

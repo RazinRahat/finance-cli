@@ -1,11 +1,31 @@
+# Python
 __pycache__/
 *.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+
+# Testing and tooling
 .pytest_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-dist/
+
+# Builds
 build/
-*.egg-info/
+dist/
+
+# Environment variables
 .env
+.env.*
+
+# macOS
 .DS_Store
+
+# Personal financial data
+data/
+statements/
+*.db
+*.sqlite
+*.sqlite3
