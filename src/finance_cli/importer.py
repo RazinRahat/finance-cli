@@ -4,8 +4,18 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from finance_cli.exceptions import InvalidTransactionError
+from finance_cli.exceptions import (
+    InvalidStatementError,
+    InvalidTransactionError,
+    StatementNotFoundError,
+)
 from finance_cli.models import Transaction
+
+REQUIRED_COLUMNS = {
+    "date",
+    "description",
+    "amount",
+}
 
 
 def _parse_date(raw_date: str) -> date:
@@ -87,13 +97,43 @@ def import_statement(
 
     path = Path(statement_path)
 
-    with path.open(
-        mode="r",
-        encoding="utf-8-sig",
-        newline="",
-    ) as statement_file:
+    try:
+        statement_file = path.open(
+            mode="r",
+            encoding="utf-8-sig",
+            newline="",
+        )
+    except FileNotFoundError as error:
+        raise StatementNotFoundError(f"Statement file not found: {path}") from error
+    except (IsADirectoryError, PermissionError) as error:
+        raise InvalidStatementError(
+            f"Statement is not a readable file: {path}"
+        ) from error
+
+    with statement_file:
         reader = csv.DictReader(statement_file)
 
-        transactions = [parse_transaction_row(row) for row in reader]
+        if reader.fieldnames is None:
+            raise InvalidStatementError(f"Statement is empty: {path}")
+
+        missing_columns = REQUIRED_COLUMNS - set(reader.fieldnames)
+
+        if missing_columns:
+            formatted_columns = ", ".join(sorted(missing_columns))
+            raise InvalidStatementError(
+                f"Statement is missing required columns: " f"{formatted_columns}"
+            )
+
+        transactions: list[Transaction] = []
+
+        for row in reader:
+            try:
+                transaction = parse_transaction_row(row)
+            except InvalidTransactionError as error:
+                raise InvalidTransactionError(
+                    f"Invalid transaction on CSV row " f"{reader.line_num}: {error}"
+                ) from error
+
+            transactions.append(transaction)
 
     return transactions
