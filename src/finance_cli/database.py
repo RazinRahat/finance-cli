@@ -1,4 +1,5 @@
 import sqlite3
+from collections.abc import Iterable
 from contextlib import closing
 from datetime import date
 from decimal import Decimal
@@ -68,39 +69,12 @@ def save_transaction(
 ) -> int:
     """Store one transaction and return its database ID."""
 
-    path = Path(database_path)
-    initialize_database(path)
-
-    values = (
-        transaction.transaction_date.isoformat(),
-        transaction.description,
-        decimal_to_cents(transaction.amount),
-        transaction.category,
+    transaction_ids = save_transactions(
+        database_path,
+        [transaction],
     )
 
-    try:
-        with closing(sqlite3.connect(path)) as connection, connection:
-            cursor = connection.execute(
-                """
-                    INSERT INTO transactions (
-                        transaction_date,
-                        description,
-                        amount_cents,
-                        category
-                    )
-                    VALUES (?, ?, ?, ?)
-                    """,
-                values,
-            )
-
-            transaction_id = cursor.lastrowid
-    except sqlite3.Error as error:
-        raise DatabaseError("Could not save transaction to the database.") from error
-
-    if transaction_id is None:
-        raise DatabaseError("The database did not return a transaction ID.")
-
-    return transaction_id
+    return transaction_ids[0]
 
 
 def get_transactions(
@@ -138,3 +112,57 @@ def get_transactions(
         )
         for row in rows
     ]
+
+
+def _transaction_values(
+    transaction: Transaction,
+) -> tuple[str, str, int, str]:
+    """Convert a Transaction into SQLite-compatible values."""
+
+    return (
+        transaction.transaction_date.isoformat(),
+        transaction.description,
+        decimal_to_cents(transaction.amount),
+        transaction.category,
+    )
+
+
+def save_transactions(
+    database_path: str | Path,
+    transactions: Iterable[Transaction],
+) -> list[int]:
+    """Store transactions atomically and return their IDs."""
+
+    path = Path(database_path)
+    initialize_database(path)
+
+    transaction_ids: list[int] = []
+
+    try:
+        with closing(sqlite3.connect(path)) as connection, connection:
+            for transaction in transactions:
+                cursor = connection.execute(
+                    """
+                        INSERT INTO transactions (
+                            transaction_date,
+                            description,
+                            amount_cents,
+                            category
+                        )
+                        VALUES (?, ?, ?, ?)
+                        """,
+                    _transaction_values(transaction),
+                )
+
+                transaction_id = cursor.lastrowid
+
+                if transaction_id is None:
+                    raise DatabaseError(
+                        "The database did not return " "a transaction ID."
+                    )
+
+                transaction_ids.append(transaction_id)
+    except sqlite3.Error as error:
+        raise DatabaseError("Could not save transactions to the database.") from error
+
+    return transaction_ids

@@ -11,6 +11,7 @@ from finance_cli.database import (
     get_transactions,
     initialize_database,
     save_transaction,
+    save_transactions,
 )
 from finance_cli.exceptions import InvalidTransactionError
 from finance_cli.models import Transaction
@@ -219,13 +220,13 @@ def test_get_transactions_returns_chronological_order(
     later_transaction = Transaction(
         transaction_date=date(2026, 7, 3),
         description="Opal Travel",
-        amount=Decimal("-20.00"),
+        amount=Decimal("-60.00"),
         category="Transport",
     )
     earlier_transaction = Transaction(
         transaction_date=date(2026, 7, 1),
-        description="Woolworths Eastwood",
-        amount=Decimal("-84.25"),
+        description="Woolworths",
+        amount=Decimal("-85.25"),
         category="Groceries",
     )
 
@@ -248,3 +249,96 @@ def test_get_transactions_returns_empty_list_for_empty_database(
     transactions = get_transactions(database_path)
 
     assert transactions == []
+
+
+def test_save_transactions_stores_entire_batch(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    transactions = [
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Woolworths",
+            amount=Decimal("-85.25"),
+            category="Groceries",
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 2),
+            description="Servo Salary",
+            amount=Decimal("1275.00"),
+            category="Income",
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 3),
+            description="Opal Travel",
+            amount=Decimal("-60.00"),
+            category="Transport",
+        ),
+    ]
+
+    transaction_ids = save_transactions(
+        database_path,
+        transactions,
+    )
+    restored = get_transactions(database_path)
+
+    assert transaction_ids == [1, 2, 3]
+    assert len(restored) == 3
+
+    assert [transaction.description for transaction in restored] == [
+        "Woolworths",
+        "Servo Salary",
+        "Opal Travel",
+    ]
+
+
+def test_save_transactions_rolls_back_entire_batch_on_error(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    transactions = [
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Woolworths",
+            amount=Decimal("-85.25"),
+            category="Groceries",
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 2),
+            description="Invalid Precision",
+            amount=Decimal("-10.001"),
+            category="Uncategorized",
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 3),
+            description="Opal Travel",
+            amount=Decimal("-60.00"),
+            category="Transport",
+        ),
+    ]
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match="fractions of a cent",
+    ):
+        save_transactions(database_path, transactions)
+
+    restored = get_transactions(database_path)
+
+    assert restored == []
+
+
+def test_save_transactions_accepts_empty_batch(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    transaction_ids = save_transactions(
+        database_path,
+        [],
+    )
+
+    assert transaction_ids == []
+    assert get_transactions(database_path) == []
