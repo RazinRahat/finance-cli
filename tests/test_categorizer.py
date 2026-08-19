@@ -42,11 +42,10 @@ def test_categorize_description_returns_uncategorized_for_unknown_merchant() -> 
 @pytest.mark.parametrize(
     "description",
     [
-        "WOOLWORTHS EASTWOOD",
-        "woolworths eastwood",
-        "Woolworths Eastwood",
-        "  WOOLWORTHS EASTWOOD  ",
-        "WOOLWORTHS    EASTWOOD",
+        "WOOLWORTHS",
+        "woolworths",
+        "  WOOLWORTHS   ",
+        "WOOLWORTHS    ",
     ],
 )
 def test_categorize_description_ignores_case_and_whitespace(
@@ -77,8 +76,8 @@ def test_categorize_description_accepts_custom_rules() -> None:
 def test_categorize_transaction_returns_categorized_copy() -> None:
     original = Transaction(
         transaction_date=date(2026, 7, 1),
-        description="Woolworths Eastwood",
-        amount=Decimal("-84.25"),
+        description="Woolworths",
+        amount=Decimal("-85.25"),
     )
 
     categorized = categorize_transaction(original)

@@ -16,3 +16,7 @@ class StatementNotFoundError(FinanceCLIError):
 
 class DatabaseError(FinanceCLIError):
     """Raised when transaction persistence fails."""
+
+
+class DuplicateStatementError(FinanceCLIError):
+    """Raised when a statement has already been imported."""

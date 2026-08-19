@@ -6,14 +6,16 @@ from pathlib import Path
 import pytest
 
 from finance_cli.database import (
+    calculate_statement_hash,
     cents_to_decimal,
     decimal_to_cents,
     get_transactions,
     initialize_database,
+    save_statement_import,
     save_transaction,
     save_transactions,
 )
-from finance_cli.exceptions import InvalidTransactionError
+from finance_cli.exceptions import DuplicateStatementError, InvalidTransactionError
 from finance_cli.models import Transaction
 
 
@@ -50,6 +52,8 @@ def test_transactions_table_has_expected_columns(
 
     assert column_names == {
         "id",
+        "import_id",
+        "source_row",
         "transaction_date",
         "description",
         "amount_cents",
@@ -189,7 +193,7 @@ def test_save_and_retrieve_transaction(
     database_path = tmp_path / "finance.db"
     original = Transaction(
         transaction_date=date(2026, 7, 1),
-        description="Woolworths Eastwood",
+        description="Woolworths",
         amount=Decimal("-84.25"),
         category="Groceries",
     )
@@ -342,3 +346,179 @@ def test_save_transactions_accepts_empty_batch(
 
     assert transaction_ids == []
     assert get_transactions(database_path) == []
+
+
+def test_initialize_database_creates_statement_imports_table(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    initialize_database(database_path)
+
+    with sqlite3.connect(database_path) as connection:
+        table = connection.execute("""
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name = 'statement_imports'
+            """).fetchone()
+
+    assert table is not None
+    assert table[0] == "statement_imports"
+
+
+def test_statement_hash_depends_on_file_contents(
+    tmp_path: Path,
+) -> None:
+    first_path = tmp_path / "first.csv"
+    renamed_path = tmp_path / "renamed.csv"
+    different_path = tmp_path / "different.csv"
+
+    shared_content = "date,description,amount\n" "2026-07-01,Woolworths,-85.25\n"
+
+    first_path.write_text(
+        shared_content,
+        encoding="utf-8",
+    )
+    renamed_path.write_text(
+        shared_content,
+        encoding="utf-8",
+    )
+    different_path.write_text(
+        shared_content.replace("-85.25", "-84.25"),
+        encoding="utf-8",
+    )
+
+    first_hash = calculate_statement_hash(first_path)
+    renamed_hash = calculate_statement_hash(renamed_path)
+    different_hash = calculate_statement_hash(different_path)
+
+    assert first_hash == renamed_hash
+    assert first_hash != different_hash
+
+
+def test_save_statement_import_stores_transactions(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+
+    transactions = [
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Woolworths",
+            amount=Decimal("-85.25"),
+            category="Groceries",
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 2),
+            description="Servo Salary",
+            amount=Decimal("1270.00"),
+            category="Income",
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 3),
+            description="Opal Travel",
+            amount=Decimal("-60.00"),
+            category="Transport",
+        ),
+    ]
+
+    import_id = save_statement_import(
+        database_path,
+        statement_path,
+        transactions,
+    )
+
+    restored = get_transactions(database_path)
+
+    assert import_id == 1
+    assert len(restored) == 3
+
+
+def test_save_statement_import_rejects_same_content_under_new_name(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+    original_path = tmp_path / "july.csv"
+    renamed_path = tmp_path / "july-copy.csv"
+
+    content = "date,description,amount\n" "2026-07-01,Woolworths,-85.25\n"
+
+    original_path.write_text(content, encoding="utf-8")
+    renamed_path.write_text(content, encoding="utf-8")
+
+    transactions = [
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Woolworths",
+            amount=Decimal("-85.25"),
+            category="Groceries",
+        )
+    ]
+
+    save_statement_import(
+        database_path,
+        original_path,
+        transactions,
+    )
+
+    with pytest.raises(
+        DuplicateStatementError,
+        match="already been imported",
+    ):
+        save_statement_import(
+            database_path,
+            renamed_path,
+            transactions,
+        )
+
+    assert len(get_transactions(database_path)) == 1
+
+
+def test_failed_statement_import_can_be_retried(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+    statement_path = tmp_path / "statement.csv"
+
+    statement_path.write_text(
+        "date,description,amount\n" "2026-07-01,Woolworths,-85.25\n",
+        encoding="utf-8",
+    )
+
+    invalid_transactions = [
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Invalid Precision",
+            amount=Decimal("-85.251"),
+        )
+    ]
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match="fractions of a cent",
+    ):
+        save_statement_import(
+            database_path,
+            statement_path,
+            invalid_transactions,
+        )
+
+    valid_transactions = [
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Woolworths",
+            amount=Decimal("-85.25"),
+            category="Groceries",
+        )
+    ]
+
+    import_id = save_statement_import(
+        database_path,
+        statement_path,
+        valid_transactions,
+    )
+
+    assert import_id == 1
+    assert len(get_transactions(database_path)) == 1

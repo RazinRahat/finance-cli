@@ -18,30 +18,30 @@ from finance_cli.importer import (
 def test_parse_valid_transaction_row() -> None:
     row = {
         "date": "2026-07-01",
-        "description": "Woolworths Eastwood",
-        "amount": "-84.25",
+        "description": "Woolworths",
+        "amount": "-85.25",
     }
 
     transaction = parse_transaction_row(row)
 
     assert transaction.transaction_date == date(2026, 7, 1)
-    assert transaction.description == "Woolworths Eastwood"
-    assert transaction.amount == Decimal("-84.25")
+    assert transaction.description == "Woolworths"
+    assert transaction.amount == Decimal("-85.25")
     assert transaction.category == "Uncategorized"
 
 
 def test_parse_transaction_row_removes_surrounding_whitespace() -> None:
     row = {
         "date": " 2026-07-01 ",
-        "description": "  Woolworths Eastwood  ",
-        "amount": " -84.25 ",
+        "description": "  Woolworths  ",
+        "amount": " -85.25 ",
     }
 
     transaction = parse_transaction_row(row)
 
     assert transaction.transaction_date == date(2026, 7, 1)
-    assert transaction.description == "Woolworths Eastwood"
-    assert transaction.amount == Decimal("-84.25")
+    assert transaction.description == "Woolworths"
+    assert transaction.amount == Decimal("-85.25")
 
 
 @pytest.mark.parametrize(
@@ -59,7 +59,7 @@ def test_parse_transaction_row_rejects_invalid_amount(
 ) -> None:
     row = {
         "date": "2026-07-01",
-        "description": "Woolworths Eastwood",
+        "description": "Woolworths",
         "amount": invalid_amount,
     }
 
@@ -86,8 +86,8 @@ def test_parse_transaction_row_rejects_invalid_date(
 ) -> None:
     row = {
         "date": invalid_date,
-        "description": "Woolworths Eastwood",
-        "amount": "-84.25",
+        "description": "Woolworths",
+        "amount": "-85.25",
     }
 
     with pytest.raises(
@@ -101,7 +101,7 @@ def test_parse_transaction_row_rejects_empty_description() -> None:
     row = {
         "date": "2026-07-01",
         "description": "   ",
-        "amount": "-84.25",
+        "amount": "-85.25",
     }
 
     with pytest.raises(
@@ -158,11 +158,11 @@ def test_import_statement_rejects_empty_file(
     ("csv_content", "missing_column"),
     [
         (
-            "description,amount\nWoolworths,-84.25\n",
+            "description,amount\nWoolworths,-85.25\n",
             "date",
         ),
         (
-            "date,amount\n2026-07-01,-84.25\n",
+            "date,amount\n2026-07-01,-85.25\n",
             "description",
         ),
         (
@@ -192,7 +192,7 @@ def test_import_statement_reports_invalid_row_number(
     statement_path = tmp_path / "invalid-row.csv"
     statement_path.write_text(
         "date,description,amount\n"
-        "2026-07-01,Woolworths,-84.25\n"
+        "2026-07-01,Woolworths,-85.25\n"
         "2026-07-02,Opal,not-an-amount\n",
         encoding="utf-8",
     )
