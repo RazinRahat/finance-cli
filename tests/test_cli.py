@@ -73,3 +73,35 @@ def test_import_statement_command_reports_invalid_columns(
     assert "missing required columns" in result.output
     assert "amount" in result.output
     assert "Traceback" not in result.output
+
+
+def test_import_statement_command_reports_category_counts() -> None:
+    runner = CliRunner()
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+
+    result = runner.invoke(
+        cli,
+        ["import-statement", str(statement_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Categorized: 3" in result.output
+    assert "Uncategorized: 0" in result.output
+
+
+def test_import_statement_command_can_disable_categorization() -> None:
+    runner = CliRunner()
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+
+    result = runner.invoke(
+        cli,
+        [
+            "import-statement",
+            str(statement_path),
+            "--no-categorize",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Categorized: 0" in result.output
+    assert "Uncategorized: 3" in result.output

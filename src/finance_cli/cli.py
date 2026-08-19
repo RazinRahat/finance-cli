@@ -23,20 +23,38 @@ def hello() -> None:
     "statement_path",
     type=click.Path(path_type=Path),
 )
+@click.option(
+    "--categorize/--no-categorize",
+    default=True,
+    help="Automatically categorize imported transactions.",
+)
 def import_statement_command(
     statement_path: Path,
+    categorize: bool,
 ) -> None:
     """Import and validate transactions from a CSV statement."""
 
     try:
-        transactions = import_statement(statement_path)
+        transactions = import_statement(
+            statement_path,
+            auto_categorize=categorize,
+        )
     except FinanceCLIError as error:
         raise click.ClickException(str(error)) from error
 
-    count = len(transactions)
-    noun = "transaction" if count == 1 else "transactions"
+    transaction_count = len(transactions)
+    categorized_count = sum(
+        transaction.category != "Uncategorized" for transaction in transactions
+    )
+    uncategorized_count = transaction_count - categorized_count
 
-    click.echo(f"Imported {count} {noun}.")
+    noun = "transaction" if transaction_count == 1 else "transactions"
+
+    click.echo(
+        f"Imported {transaction_count} {noun}. "
+        f"Categorized: {categorized_count}. "
+        f"Uncategorized: {uncategorized_count}."
+    )
 
 
 if __name__ == "__main__":

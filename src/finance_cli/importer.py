@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from finance_cli.categorizer import categorize_transaction
 from finance_cli.exceptions import (
     InvalidStatementError,
     InvalidTransactionError,
@@ -92,6 +93,8 @@ def parse_transaction_row(
 
 def import_statement(
     statement_path: str | Path,
+    *,
+    auto_categorize: bool = True,
 ) -> list[Transaction]:
     """Import transactions from a normalized CSV statement."""
 
@@ -131,8 +134,11 @@ def import_statement(
                 transaction = parse_transaction_row(row)
             except InvalidTransactionError as error:
                 raise InvalidTransactionError(
-                    f"Invalid transaction on CSV row " f"{reader.line_num}: {error}"
+                    "Invalid transaction on CSV row " f"{reader.line_num}: {error}"
                 ) from error
+
+            if auto_categorize:
+                transaction = categorize_transaction(transaction)
 
             transactions.append(transaction)
 

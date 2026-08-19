@@ -212,3 +212,25 @@ def test_import_statement_rejects_directory(
         match="not a readable file",
     ):
         import_statement(tmp_path)
+
+
+def test_import_statement_categorizes_transactions_by_default() -> None:
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+
+    transactions = import_statement(statement_path)
+
+    assert transactions[0].category == "Groceries"
+    assert transactions[1].category == "Income"
+    assert transactions[2].category == "Transport"
+
+
+def test_import_statement_can_disable_categorization() -> None:
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+
+    transactions = import_statement(
+        statement_path,
+        auto_categorize=False,
+    )
+
+    assert len(transactions) == 3
+    assert all(transaction.category == "Uncategorized" for transaction in transactions)
