@@ -1,10 +1,14 @@
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
 from finance_cli.exceptions import InvalidTransactionError
-from finance_cli.importer import parse_transaction_row
+from finance_cli.importer import (
+    import_statement,
+    parse_transaction_row,
+)
 
 
 def test_parse_valid_transaction_row() -> None:
@@ -101,3 +105,21 @@ def test_parse_transaction_row_rejects_empty_description() -> None:
         match="Transaction description cannot be empty",
     ):
         parse_transaction_row(row)
+
+
+def test_import_statement_returns_transactions() -> None:
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+
+    transactions = import_statement(statement_path)
+
+    assert len(transactions) == 3
+
+    assert transactions[0].transaction_date == date(2026, 7, 1)
+    assert transactions[0].description == "Woolworths Eastwood"
+    assert transactions[0].amount == Decimal("-84.25")
+
+    assert transactions[1].description == "BP Salary"
+    assert transactions[1].amount == Decimal("1250.00")
+
+    assert transactions[2].description == "Opal Travel"
+    assert transactions[2].amount == Decimal("-20.00")
