@@ -12,3 +12,7 @@ class InvalidStatementError(FinanceCLIError):
 
 class StatementNotFoundError(FinanceCLIError):
     """Raised when a requested bank statement cannot be found."""
+
+
+class DatabaseError(FinanceCLIError):
+    """Raised when transaction persistence fails."""

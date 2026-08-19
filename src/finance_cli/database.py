@@ -1,8 +1,14 @@
 import sqlite3
+from contextlib import closing
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from finance_cli.exceptions import InvalidTransactionError
+from finance_cli.exceptions import (
+    DatabaseError,
+    InvalidTransactionError,
+)
+from finance_cli.models import Transaction
 
 CENTS_PER_UNIT = Decimal(100)
 
@@ -54,3 +60,81 @@ def cents_to_decimal(cents: int) -> Decimal:
     """Convert integer cents into an exact decimal amount."""
 
     return Decimal(cents) / CENTS_PER_UNIT
+
+
+def save_transaction(
+    database_path: str | Path,
+    transaction: Transaction,
+) -> int:
+    """Store one transaction and return its database ID."""
+
+    path = Path(database_path)
+    initialize_database(path)
+
+    values = (
+        transaction.transaction_date.isoformat(),
+        transaction.description,
+        decimal_to_cents(transaction.amount),
+        transaction.category,
+    )
+
+    try:
+        with closing(sqlite3.connect(path)) as connection, connection:
+            cursor = connection.execute(
+                """
+                    INSERT INTO transactions (
+                        transaction_date,
+                        description,
+                        amount_cents,
+                        category
+                    )
+                    VALUES (?, ?, ?, ?)
+                    """,
+                values,
+            )
+
+            transaction_id = cursor.lastrowid
+    except sqlite3.Error as error:
+        raise DatabaseError("Could not save transaction to the database.") from error
+
+    if transaction_id is None:
+        raise DatabaseError("The database did not return a transaction ID.")
+
+    return transaction_id
+
+
+def get_transactions(
+    database_path: str | Path,
+) -> list[Transaction]:
+    """Return every stored transaction in chronological order."""
+
+    path = Path(database_path)
+    initialize_database(path)
+
+    try:
+        with closing(sqlite3.connect(path)) as connection:
+            connection.row_factory = sqlite3.Row
+
+            rows = connection.execute("""
+                SELECT
+                    id,
+                    transaction_date,
+                    description,
+                    amount_cents,
+                    category
+                FROM transactions
+                ORDER BY transaction_date, id
+                """).fetchall()
+    except sqlite3.Error as error:
+        raise DatabaseError("Could not read transactions from the database.") from error
+
+    return [
+        Transaction(
+            id=row["id"],
+            transaction_date=date.fromisoformat(row["transaction_date"]),
+            description=row["description"],
+            amount=cents_to_decimal(row["amount_cents"]),
+            category=row["category"],
+        )
+        for row in rows
+    ]

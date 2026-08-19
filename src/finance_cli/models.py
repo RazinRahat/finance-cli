@@ -9,3 +9,4 @@ class Transaction:
     description: str
     amount: Decimal
     category: str = "Uncategorized"
+    id: int | None = None

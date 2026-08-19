@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -7,9 +8,12 @@ import pytest
 from finance_cli.database import (
     cents_to_decimal,
     decimal_to_cents,
+    get_transactions,
     initialize_database,
+    save_transaction,
 )
 from finance_cli.exceptions import InvalidTransactionError
+from finance_cli.models import Transaction
 
 
 def test_initialize_database_creates_transactions_table(
@@ -176,3 +180,71 @@ def test_money_conversion_round_trip(
     restored_amount = cents_to_decimal(cents)
 
     assert restored_amount == original_amount
+
+
+def test_save_and_retrieve_transaction(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+    original = Transaction(
+        transaction_date=date(2026, 7, 1),
+        description="Woolworths Eastwood",
+        amount=Decimal("-84.25"),
+        category="Groceries",
+    )
+
+    transaction_id = save_transaction(
+        database_path,
+        original,
+    )
+    transactions = get_transactions(database_path)
+
+    assert transaction_id == 1
+    assert len(transactions) == 1
+
+    restored = transactions[0]
+
+    assert restored.id == transaction_id
+    assert restored.transaction_date == original.transaction_date
+    assert restored.description == original.description
+    assert restored.amount == original.amount
+    assert restored.category == original.category
+
+
+def test_get_transactions_returns_chronological_order(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    later_transaction = Transaction(
+        transaction_date=date(2026, 7, 3),
+        description="Opal Travel",
+        amount=Decimal("-20.00"),
+        category="Transport",
+    )
+    earlier_transaction = Transaction(
+        transaction_date=date(2026, 7, 1),
+        description="Woolworths Eastwood",
+        amount=Decimal("-84.25"),
+        category="Groceries",
+    )
+
+    save_transaction(database_path, later_transaction)
+    save_transaction(database_path, earlier_transaction)
+
+    transactions = get_transactions(database_path)
+
+    assert [transaction.transaction_date for transaction in transactions] == [
+        date(2026, 7, 1),
+        date(2026, 7, 3),
+    ]
+
+
+def test_get_transactions_returns_empty_list_for_empty_database(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    transactions = get_transactions(database_path)
+
+    assert transactions == []
