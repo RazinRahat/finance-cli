@@ -60,3 +60,44 @@ def test_parse_transaction_row_rejects_invalid_amount(
         match="Invalid transaction amount",
     ):
         parse_transaction_row(row)
+
+
+@pytest.mark.parametrize(
+    "invalid_date",
+    [
+        "",
+        "31/07/2026",
+        "2026/07/31",
+        "31-07-2026",
+        "2026-02-30",
+        "not-a-date",
+    ],
+)
+def test_parse_transaction_row_rejects_invalid_date(
+    invalid_date: str,
+) -> None:
+    row = {
+        "date": invalid_date,
+        "description": "Woolworths Eastwood",
+        "amount": "-84.25",
+    }
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match="Invalid transaction date",
+    ):
+        parse_transaction_row(row)
+
+
+def test_parse_transaction_row_rejects_empty_description() -> None:
+    row = {
+        "date": "2026-07-01",
+        "description": "   ",
+        "amount": "-84.25",
+    }
+
+    with pytest.raises(
+        InvalidTransactionError,
+        match="Transaction description cannot be empty",
+    ):
+        parse_transaction_row(row)
