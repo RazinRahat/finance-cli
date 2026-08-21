@@ -3,9 +3,14 @@ from pathlib import Path
 import click
 
 from finance_cli.config import default_database_path
-from finance_cli.database import save_statement_import
+from finance_cli.database import (
+    get_transactions,
+    save_statement_import,
+)
 from finance_cli.exceptions import FinanceCLIError
+from finance_cli.formatting import format_currency
 from finance_cli.importer import import_statement
+from finance_cli.periods import month_date_range
 
 
 @click.group()
@@ -80,6 +85,69 @@ def import_statement_command(
         f"Categorized: {categorized_count}. "
         f"Uncategorized: {uncategorized_count}."
     )
+
+
+@cli.command("transactions")
+@click.option(
+    "--month",
+    "month_value",
+    required=True,
+    help="Month to display in YYYY-MM format.",
+)
+@click.option(
+    "--database",
+    "database_path",
+    type=click.Path(
+        path_type=Path,
+        dir_okay=False,
+    ),
+    envvar="FINANCE_CLI_DATABASE",
+    help=(
+        "SQLite database path. Defaults to the "
+        "platform-specific user data directory."
+    ),
+)
+def transactions_command(
+    month_value: str,
+    database_path: Path | None,
+) -> None:
+    """Display transactions for a month."""
+
+    selected_database = (
+        database_path if database_path is not None else default_database_path()
+    )
+
+    try:
+        start_date, end_date = month_date_range(month_value)
+        transactions = get_transactions(
+            selected_database,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except FinanceCLIError as error:
+        raise click.ClickException(str(error)) from error
+
+    if not transactions:
+        click.echo(f"No transactions found for {month_value}.")
+        return
+
+    click.echo(f"Transactions for {month_value}\n")
+    click.echo(
+        f"{'Date':<12}" f"{'Description':<32}" f"{'Category':<18}" f"{'Amount':>14}"
+    )
+    click.echo("-" * 76)
+
+    for transaction in transactions:
+        description = transaction.description[:30]
+        category = transaction.category[:16]
+        amount = format_currency(transaction.amount)
+
+        click.echo(
+            f"{transaction.transaction_date.isoformat():<12}"
+            f"{description:<32}"
+            f"{category:<18}"
+            f"{amount:>14}"
+        )
 
 
 if __name__ == "__main__":

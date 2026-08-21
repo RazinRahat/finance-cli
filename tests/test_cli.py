@@ -1,9 +1,15 @@
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from finance_cli.cli import cli
-from finance_cli.database import get_transactions
+from finance_cli.database import (
+    get_transactions,
+    save_transactions,
+)
+from finance_cli.models import Transaction
 
 
 def test_cli_shows_help() -> None:
@@ -171,3 +177,88 @@ def test_import_statement_uses_database_environment_variable(
     assert result.exit_code == 0
     assert database_path.exists()
     assert len(get_transactions(database_path)) == 3
+
+
+def test_transactions_command_displays_selected_month(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    save_transactions(
+        database_path,
+        [
+            Transaction(
+                transaction_date=date(2026, 7, 1),
+                description="Woolworths",
+                amount=Decimal("-85.25"),
+                category="Groceries",
+            ),
+            Transaction(
+                transaction_date=date(2026, 8, 1),
+                description="August Merchant",
+                amount=Decimal("-20.00"),
+                category="Other",
+            ),
+        ],
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "transactions",
+            "--month",
+            "2026-07",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Transactions for 2026-07" in result.output
+    assert "Woolworths" in result.output
+    assert "-$85.25" in result.output
+    assert "August Merchant" not in result.output
+
+
+def test_transactions_command_rejects_invalid_month(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    result = runner.invoke(
+        cli,
+        [
+            "transactions",
+            "--month",
+            "July",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Expected YYYY-MM" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_transactions_command_reports_empty_month(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    result = runner.invoke(
+        cli,
+        [
+            "transactions",
+            "--month",
+            "2026-07",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No transactions found for 2026-07" in result.output

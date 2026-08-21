@@ -100,26 +100,51 @@ def save_transaction(
 
 def get_transactions(
     database_path: str | Path,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[Transaction]:
     """Return every stored transaction in chronological order."""
 
     path = Path(database_path)
     initialize_database(path)
 
+    conditions: list[str] = []
+    parameters: list[str] = []
+
+    if start_date is not None:
+        conditions.append("transaction_date >= ?")
+        parameters.append(start_date.isoformat())
+
+    if end_date is not None:
+        conditions.append("transaction_date < ?")
+        parameters.append(end_date.isoformat())
+
+    where_clause = ""
+
+    if conditions:
+        where_clause = "WHERE " + " AND ".join(conditions)
+
+    query = f"""
+        SELECT
+            id,
+            transaction_date,
+            description,
+            amount_cents,
+            category
+        FROM transactions
+        {where_clause}
+        ORDER BY transaction_date, id
+    """
+
     try:
         with closing(sqlite3.connect(path)) as connection:
             connection.row_factory = sqlite3.Row
 
-            rows = connection.execute("""
-                SELECT
-                    id,
-                    transaction_date,
-                    description,
-                    amount_cents,
-                    category
-                FROM transactions
-                ORDER BY transaction_date, id
-                """).fetchall()
+            rows = connection.execute(
+                query,
+                parameters,
+            ).fetchall()
     except sqlite3.Error as error:
         raise DatabaseError("Could not read transactions from the database.") from error
 

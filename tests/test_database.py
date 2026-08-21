@@ -522,3 +522,45 @@ def test_failed_statement_import_can_be_retried(
 
     assert import_id == 1
     assert len(get_transactions(database_path)) == 1
+
+
+def test_get_transactions_filters_by_date_range(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    transactions = [
+        Transaction(
+            transaction_date=date(2026, 6, 30),
+            description="June Transaction",
+            amount=Decimal("-10.00"),
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="July Start",
+            amount=Decimal("-20.00"),
+        ),
+        Transaction(
+            transaction_date=date(2026, 7, 31),
+            description="July End",
+            amount=Decimal("-30.00"),
+        ),
+        Transaction(
+            transaction_date=date(2026, 8, 1),
+            description="August Transaction",
+            amount=Decimal("-40.00"),
+        ),
+    ]
+
+    save_transactions(database_path, transactions)
+
+    results = get_transactions(
+        database_path,
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 8, 1),
+    )
+
+    assert [transaction.description for transaction in results] == [
+        "July Start",
+        "July End",
+    ]
