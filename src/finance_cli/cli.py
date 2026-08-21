@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, TypeVar, cast
 
 import click
 
@@ -15,6 +17,45 @@ from finance_cli.formatting import (
 from finance_cli.importer import import_statement
 from finance_cli.periods import month_date_range
 from finance_cli.reports import build_monthly_report
+
+CommandFunction = TypeVar(
+    "CommandFunction",
+    bound=Callable[..., Any],
+)
+
+DATABASE_OPTION_HELP = (
+    "SQLite database path. Defaults to the " "platform-specific user data directory."
+)
+
+
+def database_option(
+    function: CommandFunction,
+) -> CommandFunction:
+    """Add the shared database option to a Click command."""
+
+    decorated = click.option(
+        "--database",
+        "database_path",
+        type=click.Path(
+            path_type=Path,
+            dir_okay=False,
+        ),
+        envvar="FINANCE_CLI_DATABASE",
+        help=DATABASE_OPTION_HELP,
+    )(function)
+
+    return cast(CommandFunction, decorated)
+
+
+def _resolve_database_path(
+    database_path: Path | None,
+) -> Path:
+    """Return an explicit or default database path."""
+
+    if database_path is not None:
+        return database_path
+
+    return default_database_path()
 
 
 @click.group()
@@ -39,19 +80,7 @@ def hello() -> None:
     default=True,
     help="Automatically categorize imported transactions.",
 )
-@click.option(
-    "--database",
-    "database_path",
-    type=click.Path(
-        path_type=Path,
-        dir_okay=False,
-    ),
-    envvar="FINANCE_CLI_DATABASE",
-    help=(
-        "SQLite database path. Defaults to the "
-        "platform-specific user data directory."
-    ),
-)
+@database_option
 def import_statement_command(
     statement_path: Path,
     categorize: bool,
@@ -59,9 +88,7 @@ def import_statement_command(
 ) -> None:
     """Import and validate transactions from a CSV statement."""
 
-    selected_database = (
-        database_path if database_path is not None else default_database_path()
-    )
+    selected_database = _resolve_database_path(database_path)
 
     try:
         transactions = import_statement(
@@ -98,19 +125,7 @@ def import_statement_command(
     required=True,
     help="Month to display in YYYY-MM format.",
 )
-@click.option(
-    "--database",
-    "database_path",
-    type=click.Path(
-        path_type=Path,
-        dir_okay=False,
-    ),
-    envvar="FINANCE_CLI_DATABASE",
-    help=(
-        "SQLite database path. Defaults to the "
-        "platform-specific user data directory."
-    ),
-)
+@database_option
 @click.option(
     "--category",
     help="Only display transactions in this category.",
@@ -122,9 +137,7 @@ def transactions_command(
 ) -> None:
     """Display transactions for a month."""
 
-    selected_database = (
-        database_path if database_path is not None else default_database_path()
-    )
+    selected_database = _resolve_database_path(database_path)
 
     try:
         start_date, end_date = month_date_range(month_value)
@@ -177,28 +190,14 @@ def transactions_command(
     required=True,
     help="Month to report in YYYY-MM format.",
 )
-@click.option(
-    "--database",
-    "database_path",
-    type=click.Path(
-        path_type=Path,
-        dir_okay=False,
-    ),
-    envvar="FINANCE_CLI_DATABASE",
-    help=(
-        "SQLite database path. Defaults to the "
-        "platform-specific user data directory."
-    ),
-)
+@database_option
 def report_command(
     month_value: str,
     database_path: Path | None,
 ) -> None:
     """Generate a financial report for one month."""
 
-    selected_database = (
-        database_path if database_path is not None else default_database_path()
-    )
+    selected_database = _resolve_database_path(database_path)
 
     try:
         start_date, end_date = month_date_range(month_value)

@@ -421,3 +421,26 @@ def test_transactions_command_reports_empty_category(
     assert result.exit_code == 0
     assert "No transactions found" in result.output
     assert "Dining" in result.output
+
+
+@pytest.mark.parametrize(
+    "command_name",
+    [
+        "import-statement",
+        "transactions",
+        "report",
+    ],
+)
+def test_database_commands_expose_database_option(
+    command_name: str,
+) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [command_name, "--help"],
+    )
+
+    assert result.exit_code == 0
+    assert "--database" in result.output
+    assert result.output.count("--database") == 1
