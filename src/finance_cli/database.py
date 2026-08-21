@@ -103,6 +103,7 @@ def get_transactions(
     *,
     start_date: date | None = None,
     end_date: date | None = None,
+    category: str | None = None,
 ) -> list[Transaction]:
     """Return every stored transaction in chronological order."""
 
@@ -119,6 +120,10 @@ def get_transactions(
     if end_date is not None:
         conditions.append("transaction_date < ?")
         parameters.append(end_date.isoformat())
+
+    if category is not None:
+        conditions.append("category = ? COLLATE NOCASE")
+        parameters.append(category)
 
     where_clause = ""
 

@@ -7,6 +7,7 @@ from click.testing import CliRunner
 from finance_cli.cli import cli
 from finance_cli.database import (
     get_transactions,
+    save_transaction,
     save_transactions,
 )
 from finance_cli.models import Transaction
@@ -337,3 +338,86 @@ def test_report_command_rejects_invalid_month(
     assert result.exit_code != 0
     assert "Expected YYYY-MM" in result.output
     assert "Traceback" not in result.output
+
+
+def test_transactions_command_filters_by_category(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    save_transactions(
+        database_path,
+        [
+            Transaction(
+                transaction_date=date(2026, 7, 1),
+                description="Woolworths TownHall",
+                amount=Decimal("-85.25"),
+                category="Groceries",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 2),
+                description="Opal Travel",
+                amount=Decimal("-20.00"),
+                category="Transport",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 3),
+                description="Aldi North Ryde",
+                amount=Decimal("-30.00"),
+                category="Groceries",
+            ),
+        ],
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "transactions",
+            "--month",
+            "2026-07",
+            "--category",
+            "groceries",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Woolworths TownHall" in result.output
+    assert "Aldi North Ryde" in result.output
+    assert "Opal Travel" not in result.output
+
+
+def test_transactions_command_reports_empty_category(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    save_transaction(
+        database_path,
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Woolworths",
+            amount=Decimal("-85.25"),
+            category="Groceries",
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "transactions",
+            "--month",
+            "2026-07",
+            "--category",
+            "Dining",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No transactions found" in result.output
+    assert "Dining" in result.output

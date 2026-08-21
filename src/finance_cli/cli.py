@@ -111,9 +111,14 @@ def import_statement_command(
         "platform-specific user data directory."
     ),
 )
+@click.option(
+    "--category",
+    help="Only display transactions in this category.",
+)
 def transactions_command(
     month_value: str,
     database_path: Path | None,
+    category: str | None,
 ) -> None:
     """Display transactions for a month."""
 
@@ -127,15 +132,26 @@ def transactions_command(
             selected_database,
             start_date=start_date,
             end_date=end_date,
+            category=category,
         )
     except FinanceCLIError as error:
         raise click.ClickException(str(error)) from error
 
     if not transactions:
-        click.echo(f"No transactions found for {month_value}.")
+        message = f"No transactions found for {month_value}"
+
+        if category is not None:
+            message += f" in category {category!r}"
+
+        click.echo(f"{message}.")
         return
 
-    click.echo(f"Transactions for {month_value}\n")
+    heading = f"Transactions for {month_value}"
+
+    if category is not None:
+        heading += f" — {category}"
+
+    click.echo(f"{heading}\n")
     click.echo(
         f"{'Date':<12}" f"{'Description':<32}" f"{'Category':<18}" f"{'Amount':>14}"
     )

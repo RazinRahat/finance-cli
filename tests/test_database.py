@@ -564,3 +564,67 @@ def test_get_transactions_filters_by_date_range(
         "July Start",
         "July End",
     ]
+
+
+def test_get_transactions_filters_by_category(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    save_transactions(
+        database_path,
+        [
+            Transaction(
+                transaction_date=date(2026, 7, 1),
+                description="Woolworths",
+                amount=Decimal("-85.25"),
+                category="Groceries",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 2),
+                description="Opal",
+                amount=Decimal("-20.00"),
+                category="Transport",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 3),
+                description="Aldi",
+                amount=Decimal("-30.00"),
+                category="Groceries",
+            ),
+        ],
+    )
+
+    transactions = get_transactions(
+        database_path,
+        category="Groceries",
+    )
+
+    assert [transaction.description for transaction in transactions] == [
+        "Woolworths",
+        "Aldi",
+    ]
+
+
+def test_get_transactions_category_filter_ignores_case(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    save_transaction(
+        database_path,
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Woolworths",
+            amount=Decimal("-85.25"),
+            category="Groceries",
+        ),
+    )
+
+    transactions = get_transactions(
+        database_path,
+        category="groceries",
+    )
+
+    assert len(transactions) == 1
+    assert transactions[0].category == "Groceries"
