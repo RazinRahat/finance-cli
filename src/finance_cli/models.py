@@ -9,4 +9,5 @@ class Transaction:
     description: str
     amount: Decimal
     category: str = "Uncategorized"
+    category_source: str = "automatic"
     id: int | None = None

@@ -10,6 +10,7 @@ from finance_cli.database import (
     get_stored_categories,
     get_transactions,
     save_statement_import,
+    update_transaction_category,
 )
 from finance_cli.exceptions import FinanceCLIError
 from finance_cli.formatting import (
@@ -193,16 +194,22 @@ def transactions_command(
 
     click.echo(f"{heading}\n")
     click.echo(
-        f"{'Date':<12}" f"{'Description':<32}" f"{'Category':<18}" f"{'Amount':>14}"
+        f"{'ID':>5}  "
+        f"{'Date':<12}"
+        f"{'Description':<32}"
+        f"{'Category':<18}"
+        f"{'Amount':>14}"
     )
-    click.echo("-" * 76)
+    click.echo("-" * 83)
 
     for transaction in transactions:
         description = transaction.description[:30]
         category = transaction.category[:16]
         amount = format_currency(transaction.amount)
+        transaction_id = str(transaction.id) if transaction.id is not None else "-"
 
         click.echo(
+            f"{transaction_id:>5}  "
             f"{transaction.transaction_date.isoformat():<12}"
             f"{description:<32}"
             f"{category:<18}"
@@ -299,3 +306,31 @@ def categories_command(
 
 if __name__ == "__main__":
     cli()
+
+
+@cli.command("categorize")
+@click.argument(
+    "transaction_id",
+    type=click.IntRange(min=1),
+)
+@click.argument("category")
+@database_option
+def categorize_command(
+    transaction_id: int,
+    category: str,
+    database_path: Path | None,
+) -> None:
+    """Manually assign a transaction category."""
+
+    selected_database = _resolve_database_path(database_path)
+
+    try:
+        update_transaction_category(
+            selected_database,
+            transaction_id,
+            category,
+        )
+    except FinanceCLIError as error:
+        raise click.ClickException(str(error)) from error
+
+    click.echo(f"Transaction {transaction_id} categorized " f"as {category.strip()}.")

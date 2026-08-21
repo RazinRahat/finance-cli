@@ -29,3 +29,4 @@ statements/
 *.db
 *.sqlite
 *.sqlite3
+categories.json

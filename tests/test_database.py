@@ -15,8 +15,14 @@ from finance_cli.database import (
     save_statement_import,
     save_transaction,
     save_transactions,
+    update_transaction_category,
 )
-from finance_cli.exceptions import DuplicateStatementError, InvalidTransactionError
+from finance_cli.exceptions import (
+    DuplicateStatementError,
+    InvalidCategoryError,
+    InvalidTransactionError,
+    TransactionNotFoundError,
+)
 from finance_cli.models import Transaction
 
 
@@ -59,6 +65,7 @@ def test_transactions_table_has_expected_columns(
         "description",
         "amount_cents",
         "category",
+        "category_source",
         "created_at",
     }
 
@@ -681,3 +688,62 @@ def test_get_stored_categories_returns_empty_list(
     database_path = tmp_path / "finance.db"
 
     assert get_stored_categories(database_path) == []
+
+
+def test_update_transaction_category_marks_manual_source(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    transaction_id = save_transaction(
+        database_path,
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Unknown Cafe",
+            amount=Decimal("-12.50"),
+            category="Uncategorized",
+        ),
+    )
+
+    update_transaction_category(
+        database_path,
+        transaction_id,
+        "Dining",
+    )
+
+    transaction = get_transactions(database_path)[0]
+
+    assert transaction.category == "Dining"
+    assert transaction.category_source == "manual"
+
+
+def test_update_transaction_category_rejects_unknown_id(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    with pytest.raises(
+        TransactionNotFoundError,
+        match="Transaction not found",
+    ):
+        update_transaction_category(
+            database_path,
+            999,
+            "Dining",
+        )
+
+
+def test_update_transaction_category_rejects_empty_category(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    with pytest.raises(
+        InvalidCategoryError,
+        match="cannot be empty",
+    ):
+        update_transaction_category(
+            database_path,
+            1,
+            "   ",
+        )

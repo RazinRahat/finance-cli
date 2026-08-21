@@ -9,7 +9,9 @@ from pathlib import Path
 from finance_cli.exceptions import (
     DatabaseError,
     DuplicateStatementError,
+    InvalidCategoryError,
     InvalidTransactionError,
+    TransactionNotFoundError,
 )
 from finance_cli.models import Transaction
 
@@ -35,6 +37,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     description TEXT NOT NULL,
     amount_cents INTEGER NOT NULL,
     category TEXT NOT NULL,
+    category_source TEXT NOT NULL DEFAULT 'automatic',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (import_id)
         REFERENCES statement_imports(id)
@@ -136,7 +139,8 @@ def get_transactions(
             transaction_date,
             description,
             amount_cents,
-            category
+            category,
+            category_source
         FROM transactions
         {where_clause}
         ORDER BY transaction_date, id
@@ -160,6 +164,7 @@ def get_transactions(
             description=row["description"],
             amount=cents_to_decimal(row["amount_cents"]),
             category=row["category"],
+            category_source=row["category_source"],
         )
         for row in rows
     ]
@@ -167,7 +172,7 @@ def get_transactions(
 
 def _transaction_values(
     transaction: Transaction,
-) -> tuple[str, str, int, str]:
+) -> tuple[str, str, int, str, str]:
     """Convert a Transaction into SQLite-compatible values."""
 
     return (
@@ -175,6 +180,7 @@ def _transaction_values(
         transaction.description,
         decimal_to_cents(transaction.amount),
         transaction.category,
+        transaction.category_source,
     )
 
 
@@ -198,9 +204,10 @@ def save_transactions(
                             transaction_date,
                             description,
                             amount_cents,
-                            category
+                            category,
+                            category_source
                         )
-                        VALUES (?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?)
                         """,
                     _transaction_values(transaction),
                 )
@@ -292,9 +299,10 @@ def save_statement_import(
                             transaction_date,
                             description,
                             amount_cents,
-                            category
+                            category,
+                            category_source
                         )
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             import_id,
@@ -327,3 +335,42 @@ def get_stored_categories(
         raise DatabaseError("Could not read categories from the database.") from error
 
     return [row[0] for row in rows]
+
+
+def update_transaction_category(
+    database_path: str | Path,
+    transaction_id: int,
+    category: str,
+) -> None:
+    """Manually update a stored transaction category."""
+
+    cleaned_category = category.strip()
+
+    if not cleaned_category:
+        raise InvalidCategoryError("Category name cannot be empty.")
+
+    path = Path(database_path)
+    initialize_database(path)
+
+    try:
+        with closing(sqlite3.connect(path)) as connection, connection:
+            cursor = connection.execute(
+                """
+                    UPDATE transactions
+                    SET
+                        category = ?,
+                        category_source = 'manual'
+                    WHERE id = ?
+                    """,
+                (
+                    cleaned_category,
+                    transaction_id,
+                ),
+            )
+
+            if cursor.rowcount == 0:
+                raise TransactionNotFoundError(
+                    f"Transaction not found: " f"{transaction_id}"
+                )
+    except sqlite3.Error as error:
+        raise DatabaseError("Could not update the transaction category.") from error

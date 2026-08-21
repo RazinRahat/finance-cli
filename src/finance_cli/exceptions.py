@@ -24,3 +24,11 @@ class DuplicateStatementError(FinanceCLIError):
 
 class InvalidRulesError(FinanceCLIError):
     """Raised when a category rules file is invalid."""
+
+
+class InvalidCategoryError(FinanceCLIError):
+    """Raised when a category name is invalid."""
+
+
+class TransactionNotFoundError(FinanceCLIError):
+    """Raised when a transaction ID does not exist."""

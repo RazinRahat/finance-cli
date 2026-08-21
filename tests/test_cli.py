@@ -591,3 +591,59 @@ def test_import_rejects_rules_when_categorization_disabled(
 
     assert result.exit_code != 0
     assert "--rules cannot be combined" in result.output
+
+
+def test_categorize_command_updates_transaction(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    transaction_id = save_transaction(
+        database_path,
+        Transaction(
+            transaction_date=date(2026, 7, 1),
+            description="Unknown Cafe",
+            amount=Decimal("-12.50"),
+        ),
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "categorize",
+            str(transaction_id),
+            "Dining",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "categorized as Dining" in result.output
+
+    transaction = get_transactions(database_path)[0]
+
+    assert transaction.category == "Dining"
+    assert transaction.category_source == "manual"
+
+
+def test_categorize_command_reports_unknown_transaction(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "categorize",
+            "999",
+            "Dining",
+            "--database",
+            str(tmp_path / "finance.db"),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Transaction not found" in result.output
+    assert "Traceback" not in result.output
