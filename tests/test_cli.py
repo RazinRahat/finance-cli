@@ -262,3 +262,78 @@ def test_transactions_command_reports_empty_month(
 
     assert result.exit_code == 0
     assert "No transactions found for 2026-07" in result.output
+
+
+def test_report_command_displays_monthly_totals(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    save_transactions(
+        database_path,
+        [
+            Transaction(
+                transaction_date=date(2026, 7, 1),
+                description="Woolworths",
+                amount=Decimal("-85.25"),
+                category="Groceries",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 2),
+                description="Servo Salary",
+                amount=Decimal("1275.00"),
+                category="Income",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 3),
+                description="Opal",
+                amount=Decimal("-60.00"),
+                category="Transport",
+            ),
+        ],
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "report",
+            "--month",
+            "2026-07",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Monthly Report" in result.output
+    assert "July 2026" in result.output
+    assert "$1,275.00" in result.output
+    assert "$145.25" in result.output
+    assert "$1,129.75" in result.output
+    assert "88.6%" in result.output
+    assert "Groceries" in result.output
+    assert "$85.25" in result.output
+    assert "Transport" in result.output
+    assert "$60.00" in result.output
+
+
+def test_report_command_rejects_invalid_month(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "report",
+            "--month",
+            "2026-13",
+            "--database",
+            str(tmp_path / "finance.db"),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Expected YYYY-MM" in result.output
+    assert "Traceback" not in result.output

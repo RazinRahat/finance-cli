@@ -8,3 +8,14 @@ def format_currency(amount: Decimal) -> str:
     absolute_amount = abs(amount)
 
     return f"{sign}${absolute_amount:,.2f}"
+
+
+def format_percentage(
+    percentage: Decimal | None,
+) -> str:
+    """Format a percentage or return N/A."""
+
+    if percentage is None:
+        return "N/A"
+
+    return f"{percentage:,.1f}%"

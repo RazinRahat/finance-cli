@@ -8,9 +8,13 @@ from finance_cli.database import (
     save_statement_import,
 )
 from finance_cli.exceptions import FinanceCLIError
-from finance_cli.formatting import format_currency
+from finance_cli.formatting import (
+    format_currency,
+    format_percentage,
+)
 from finance_cli.importer import import_statement
 from finance_cli.periods import month_date_range
+from finance_cli.reports import build_monthly_report
 
 
 @click.group()
@@ -147,6 +151,68 @@ def transactions_command(
             f"{description:<32}"
             f"{category:<18}"
             f"{amount:>14}"
+        )
+
+
+@cli.command("report")
+@click.option(
+    "--month",
+    "month_value",
+    required=True,
+    help="Month to report in YYYY-MM format.",
+)
+@click.option(
+    "--database",
+    "database_path",
+    type=click.Path(
+        path_type=Path,
+        dir_okay=False,
+    ),
+    envvar="FINANCE_CLI_DATABASE",
+    help=(
+        "SQLite database path. Defaults to the "
+        "platform-specific user data directory."
+    ),
+)
+def report_command(
+    month_value: str,
+    database_path: Path | None,
+) -> None:
+    """Generate a financial report for one month."""
+
+    selected_database = (
+        database_path if database_path is not None else default_database_path()
+    )
+
+    try:
+        start_date, end_date = month_date_range(month_value)
+        transactions = get_transactions(
+            selected_database,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except FinanceCLIError as error:
+        raise click.ClickException(str(error)) from error
+
+    report = build_monthly_report(transactions)
+    month_label = start_date.strftime("%B %Y")
+
+    click.echo(f"Monthly Report — {month_label}\n")
+    click.echo(f"{'Income:':<20}" f"{format_currency(report.income):>14}")
+    click.echo(f"{'Spending:':<20}" f"{format_currency(report.spending):>14}")
+    click.echo(f"{'Net savings:':<20}" f"{format_currency(report.net_savings):>14}")
+    click.echo(f"{'Savings rate:':<20}" f"{format_percentage(report.savings_rate):>14}")
+
+    if not report.categories:
+        click.echo("\nNo spending recorded.")
+        return
+
+    click.echo("\nSpending by category")
+    click.echo("-" * 36)
+
+    for category in report.categories:
+        click.echo(
+            f"{category.category[:20]:<22}" f"{format_currency(category.amount):>14}"
         )
 
 
