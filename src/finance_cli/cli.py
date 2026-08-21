@@ -19,6 +19,10 @@ from finance_cli.formatting import (
 from finance_cli.importer import import_statement
 from finance_cli.periods import month_date_range
 from finance_cli.reports import build_monthly_report
+from finance_cli.rules import (
+    load_category_rules,
+    merge_category_rules,
+)
 
 CommandFunction = TypeVar(
     "CommandFunction",
@@ -82,20 +86,41 @@ def hello() -> None:
     default=True,
     help="Automatically categorize imported transactions.",
 )
+@click.option(
+    "--rules",
+    "rules_path",
+    type=click.Path(
+        path_type=Path,
+        exists=True,
+        dir_okay=False,
+    ),
+    help="JSON file containing custom category rules.",
+)
 @database_option
 def import_statement_command(
     statement_path: Path,
     categorize: bool,
+    rules_path: Path | None,
     database_path: Path | None,
 ) -> None:
     """Import and validate transactions from a CSV statement."""
 
     selected_database = _resolve_database_path(database_path)
 
+    if rules_path is not None and not categorize:
+        raise click.UsageError("--rules cannot be combined with " "--no-categorize.")
+
     try:
+        category_rules = None
+
+        if rules_path is not None:
+            custom_rules = load_category_rules(rules_path)
+            category_rules = merge_category_rules(custom_rules)
+
         transactions = import_statement(
             statement_path,
             auto_categorize=categorize,
+            category_rules=category_rules,
         )
         save_statement_import(
             selected_database,

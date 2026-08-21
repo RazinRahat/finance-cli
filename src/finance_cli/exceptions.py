@@ -20,3 +20,7 @@ class DatabaseError(FinanceCLIError):
 
 class DuplicateStatementError(FinanceCLIError):
     """Raised when a statement has already been imported."""
+
+
+class InvalidRulesError(FinanceCLIError):
+    """Raised when a category rules file is invalid."""

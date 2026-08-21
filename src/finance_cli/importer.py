@@ -1,10 +1,16 @@
 import csv
-from collections.abc import Mapping
+from collections.abc import (
+    Mapping,
+    Sequence,
+)
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from finance_cli.categorizer import categorize_transaction
+from finance_cli.categorizer import (
+    DEFAULT_CATEGORY_RULES,
+    categorize_transaction,
+)
 from finance_cli.exceptions import (
     InvalidStatementError,
     InvalidTransactionError,
@@ -95,10 +101,19 @@ def import_statement(
     statement_path: str | Path,
     *,
     auto_categorize: bool = True,
+    category_rules: (
+        Mapping[
+            str,
+            Sequence[str],
+        ]
+        | None
+    ) = None,
 ) -> list[Transaction]:
     """Import transactions from a normalized CSV statement."""
 
     path = Path(statement_path)
+
+    active_rules = DEFAULT_CATEGORY_RULES if category_rules is None else category_rules
 
     try:
         statement_file = path.open(
@@ -138,7 +153,10 @@ def import_statement(
                 ) from error
 
             if auto_categorize:
-                transaction = categorize_transaction(transaction)
+                transaction = categorize_transaction(
+                    transaction,
+                    rules=active_rules,
+                )
 
             transactions.append(transaction)
 

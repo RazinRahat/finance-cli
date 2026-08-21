@@ -522,3 +522,72 @@ def test_categories_command_handles_empty_database(
 
     assert result.exit_code == 0
     assert "No categories stored" in result.output
+
+
+def test_import_statement_uses_custom_rules(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+    rules_path = tmp_path / "rules.json"
+    database_path = tmp_path / "finance.db"
+
+    rules_path.write_text(
+        """
+        {
+          "Household": [
+            "woolworths"
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "import-statement",
+            str(statement_path),
+            "--rules",
+            str(rules_path),
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+
+    transactions = get_transactions(database_path)
+
+    assert transactions[0].category == "Household"
+    assert transactions[1].category == "Income"
+    assert transactions[2].category == "Transport"
+
+
+def test_import_rejects_rules_when_categorization_disabled(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    statement_path = Path(__file__).parent / "fixtures" / "sample_statement.csv"
+    rules_path = tmp_path / "rules.json"
+
+    rules_path.write_text(
+        '{"Groceries": ["woolworths"]}',
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "import-statement",
+            str(statement_path),
+            "--rules",
+            str(rules_path),
+            "--no-categorize",
+            "--database",
+            str(tmp_path / "finance.db"),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "--rules cannot be combined" in result.output
