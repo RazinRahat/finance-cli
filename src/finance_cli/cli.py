@@ -4,8 +4,10 @@ from typing import Any, TypeVar, cast
 
 import click
 
+from finance_cli.categorizer import DEFAULT_CATEGORY_RULES
 from finance_cli.config import default_database_path
 from finance_cli.database import (
+    get_stored_categories,
     get_transactions,
     save_statement_import,
 )
@@ -229,6 +231,45 @@ def report_command(
         click.echo(
             f"{category.category[:20]:<22}" f"{format_currency(category.amount):>14}"
         )
+
+
+@cli.command("categories")
+@click.option(
+    "--stored",
+    is_flag=True,
+    help="Show categories present in the database.",
+)
+@database_option
+def categories_command(
+    stored: bool,
+    database_path: Path | None,
+) -> None:
+    """Display categorization rules and stored categories."""
+
+    click.echo("Default categorization rules\n")
+
+    for category, keywords in DEFAULT_CATEGORY_RULES.items():
+        formatted_keywords = ", ".join(keywords)
+        click.echo(f"{category:<16}{formatted_keywords}")
+
+    if not stored:
+        return
+
+    selected_database = _resolve_database_path(database_path)
+
+    try:
+        stored_categories = get_stored_categories(selected_database)
+    except FinanceCLIError as error:
+        raise click.ClickException(str(error)) from error
+
+    click.echo("\nStored categories\n")
+
+    if not stored_categories:
+        click.echo("No categories stored.")
+        return
+
+    for category in stored_categories:
+        click.echo(f"- {category}")
 
 
 if __name__ == "__main__":

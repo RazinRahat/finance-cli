@@ -9,6 +9,7 @@ from finance_cli.database import (
     calculate_statement_hash,
     cents_to_decimal,
     decimal_to_cents,
+    get_stored_categories,
     get_transactions,
     initialize_database,
     save_statement_import,
@@ -628,3 +629,55 @@ def test_get_transactions_category_filter_ignores_case(
 
     assert len(transactions) == 1
     assert transactions[0].category == "Groceries"
+
+
+def test_get_stored_categories_returns_distinct_sorted_values(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    save_transactions(
+        database_path,
+        [
+            Transaction(
+                transaction_date=date(2026, 7, 1),
+                description="Woolworths",
+                amount=Decimal("-85.25"),
+                category="Groceries",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 2),
+                description="Aldi",
+                amount=Decimal("-30.00"),
+                category="Groceries",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 3),
+                description="Opal",
+                amount=Decimal("-20.00"),
+                category="Transport",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 4),
+                description="Salary",
+                amount=Decimal("1275.00"),
+                category="Income",
+            ),
+        ],
+    )
+
+    categories = get_stored_categories(database_path)
+
+    assert categories == [
+        "Groceries",
+        "Income",
+        "Transport",
+    ]
+
+
+def test_get_stored_categories_returns_empty_list(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "finance.db"
+
+    assert get_stored_categories(database_path) == []

@@ -306,3 +306,24 @@ def save_statement_import(
         raise DatabaseError("Could not save the statement import.") from error
 
     return import_id
+
+
+def get_stored_categories(
+    database_path: str | Path,
+) -> list[str]:
+    """Return distinct categories stored in the database."""
+
+    path = Path(database_path)
+    initialize_database(path)
+
+    try:
+        with closing(sqlite3.connect(path)) as connection:
+            rows = connection.execute("""
+                SELECT DISTINCT category
+                FROM transactions
+                ORDER BY category COLLATE NOCASE
+                """).fetchall()
+    except sqlite3.Error as error:
+        raise DatabaseError("Could not read categories from the database.") from error
+
+    return [row[0] for row in rows]

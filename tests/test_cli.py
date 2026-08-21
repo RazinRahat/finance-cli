@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from finance_cli.cli import cli
@@ -444,3 +445,80 @@ def test_database_commands_expose_database_option(
     assert result.exit_code == 0
     assert "--database" in result.output
     assert result.output.count("--database") == 1
+
+
+def test_categories_command_displays_default_rules() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        ["categories"],
+    )
+
+    assert result.exit_code == 0
+    assert "Default categorization rules" in result.output
+    assert "Groceries" in result.output
+    assert "woolworths" in result.output
+    assert "Transport" in result.output
+    assert "opal" in result.output
+    assert "Subscriptions" in result.output
+    assert "netflix" in result.output
+
+
+def test_categories_command_displays_stored_categories(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    database_path = tmp_path / "finance.db"
+
+    save_transactions(
+        database_path,
+        [
+            Transaction(
+                transaction_date=date(2026, 7, 1),
+                description="Woolworths",
+                amount=Decimal("-84.25"),
+                category="Groceries",
+            ),
+            Transaction(
+                transaction_date=date(2026, 7, 2),
+                description="Unknown Merchant",
+                amount=Decimal("-10.00"),
+                category="Uncategorized",
+            ),
+        ],
+    )
+
+    result = runner.invoke(
+        cli,
+        [
+            "categories",
+            "--stored",
+            "--database",
+            str(database_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Stored categories" in result.output
+    assert "- Groceries" in result.output
+    assert "- Uncategorized" in result.output
+
+
+def test_categories_command_handles_empty_database(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "categories",
+            "--stored",
+            "--database",
+            str(tmp_path / "finance.db"),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No categories stored" in result.output
